@@ -14,8 +14,8 @@ function bucket(count: number, max: number): number {
 export default function KsbGrid({ counts }: { counts: Record<string, number> }) {
   const max = Math.max(0, ...Object.values(counts));
   const groups = [
-    { label: "Professional discussion", items: KSBS.filter((k) => k.phase === "discussion") },
-    { label: "Project questioning", items: KSBS.filter((k) => k.phase === "project") },
+    { label: "Professional Discussion", items: KSBS.filter((k) => k.phase === "discussion") },
+    { label: "Project Questioning", items: KSBS.filter((k) => k.phase === "project") },
   ];
   return (
     <div className="space-y-5">
@@ -30,7 +30,7 @@ export default function KsbGrid({ counts }: { counts: Record<string, number> }) 
                 <div
                   key={k.code}
                   title={`${k.code} - ${k.title}\nCame up ${count} time${count === 1 ? "" : "s"}${k.distinction ? "\n★ distinction-tagged" : ""}`}
-                  className={`flex h-12 w-14 flex-col items-center justify-center rounded ${
+                  className={`flex h-12 w-14 flex-col items-center justify-center ${
                     k.distinction ? "ring-2 ring-accent/70" : ""
                   }`}
                   style={

@@ -82,7 +82,7 @@ function RowPair({
         <td className="py-2 pr-3">
           <span className="flex items-center gap-1.5">
             <span
-              className="inline-block h-2.5 w-2.5 rounded-sm"
+              className="inline-block h-2.5 w-2.5"
               style={{ background: PHASE_COLORS[row.phase] }}
             />
             {PHASE_LABEL[row.phase]}

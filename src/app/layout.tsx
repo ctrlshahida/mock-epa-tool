@@ -27,7 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             >
               EPA Simulator
             </Link>
-            <div className="flex gap-6 text-sm font-medium">
+            <div className="flex gap-6 text-sm font-bold">
               <Link href="/" className="text-muted hover:text-foreground">
                 Practice
               </Link>

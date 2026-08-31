@@ -1,11 +1,11 @@
 import { asc } from "drizzle-orm";
 import { getDb, hasDb } from "@/db";
 import { sessions, type SessionRow } from "@/db/schema";
-import type { Phase } from "@/lib/ksbs";
-import WpmTrend, { type WpmPoint } from "@/components/charts/WpmTrend";
-import FlagRate, { type FlagRatePoint } from "@/components/charts/FlagRate";
-import TimeUsed, { type TimeUsedPoint } from "@/components/charts/TimeUsed";
+import { KSBS, type Phase } from "@/lib/ksbs";
+import { buildInsights } from "@/lib/insights";
 import KsbGrid from "@/components/KsbGrid";
+import Insights from "@/components/Insights";
+import StatRow, { type Stat } from "@/components/StatRow";
 import SessionTable, { type SessionTableRow } from "@/components/SessionTable";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ function shortLabel(d: Date): string {
 export default async function DashboardPage() {
   if (!hasDb()) {
     return (
-      <div className="mx-auto max-w-xl rounded-lg border border-border bg-surface p-6">
+      <div className="mx-auto max-w-xl border border-border bg-surface p-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="mt-3 text-sm text-muted">
           No database configured yet. Provision Neon through the Vercel
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
 
   if (rows.length === 0) {
     return (
-      <div className="mx-auto max-w-xl rounded-lg border border-border bg-surface p-6">
+      <div className="mx-auto max-w-xl border border-border bg-surface p-6">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="mt-3 text-sm text-muted">
           No sessions saved yet - run a practice session and save it from the
@@ -48,28 +48,7 @@ export default async function DashboardPage() {
     );
   }
 
-  const wpmData: WpmPoint[] = rows.map((r) => ({
-    label: shortLabel(r.createdAt),
-    discussion: r.phase === "discussion" ? r.wpm : null,
-    project: r.phase === "project" ? r.wpm : null,
-  }));
-  const hasWpm = wpmData.some((d) => d.discussion !== null || d.project !== null);
-
-  const flagData: FlagRatePoint[] = rows
-    .filter((r) => r.distinctionFlagsTotal > 0)
-    .map((r) => ({
-      label: shortLabel(r.createdAt),
-      phase: r.phase,
-      rate: Math.round((r.distinctionFlagsHit / r.distinctionFlagsTotal) * 100),
-      hit: r.distinctionFlagsHit,
-      total: r.distinctionFlagsTotal,
-    }));
-
-  const timeData: TimeUsedPoint[] = rows.map((r) => ({
-    label: shortLabel(r.createdAt),
-    phase: r.phase,
-    minutes: Math.round(r.timeUsedSec / 60),
-  }));
+  const insights = buildInsights(rows);
 
   const ksbCounts: Record<string, number> = {};
   for (const r of rows) {
@@ -77,6 +56,20 @@ export default async function DashboardPage() {
       ksbCounts[tag] = (ksbCounts[tag] ?? 0) + 1;
     }
   }
+
+  const distinctionRows = rows.filter((r) => r.distinctionFlagsTotal > 0);
+  const distinctionHit = distinctionRows.reduce((s, r) => s + r.distinctionFlagsHit, 0);
+  const distinctionTotal = distinctionRows.reduce((s, r) => s + r.distinctionFlagsTotal, 0);
+
+  const stats: Stat[] = [
+    { label: "Sessions saved", value: String(rows.length) },
+    { label: "KSB coverage", value: `${Object.keys(ksbCounts).length}/${KSBS.length}` },
+    {
+      label: "Distinction hit-rate",
+      value: distinctionTotal > 0 ? `${Math.round((distinctionHit / distinctionTotal) * 100)}%` : "-",
+    },
+    { label: "Last session", value: shortLabel(rows[rows.length - 1].createdAt) },
+  ];
 
   const tableRows: SessionTableRow[] = [...rows].reverse().map((r) => ({
     id: r.id,
@@ -96,46 +89,20 @@ export default async function DashboardPage() {
     <div className="space-y-8">
       <h1 className="text-4xl font-extrabold tracking-tightest">Dashboard</h1>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold">Rough pace per session (wpm)</h2>
-          {hasWpm ? (
-            <WpmTrend data={wpmData} />
-          ) : (
-            <p className="text-sm text-muted">
-              No transcript-enabled sessions yet - turn on the live transcript to
-              collect pace data.
-            </p>
-          )}
-        </section>
+      <StatRow stats={stats} />
 
-        <section className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold">
-            Distinction answers showing evaluative language
-          </h2>
-          {flagData.length > 0 ? (
-            <FlagRate data={flagData} />
-          ) : (
-            <p className="text-sm text-muted">
-              Needs transcript-enabled sessions that hit distinction-tagged
-              questions.
-            </p>
-          )}
-        </section>
+      <section className="border border-border bg-surface p-5">
+        <h2 className="mb-3 text-sm font-semibold">Suggestions</h2>
+        <Insights items={insights} />
+      </section>
 
-        <section className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold">Time used per phase</h2>
-          <TimeUsed data={timeData} />
-        </section>
+      <section className="border border-border bg-surface p-5">
+        <h2 className="mb-3 text-sm font-semibold">KSB Coverage</h2>
+        <KsbGrid counts={ksbCounts} />
+      </section>
 
-        <section className="rounded-lg border border-border bg-surface p-5">
-          <h2 className="mb-3 text-sm font-semibold">KSB coverage</h2>
-          <KsbGrid counts={ksbCounts} />
-        </section>
-      </div>
-
-      <section className="rounded-lg border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-semibold">Session history</h2>
+      <section className="border border-border bg-surface p-5">
+        <h2 className="mb-3 text-sm font-semibold">Session History</h2>
         <SessionTable rows={tableRows} />
       </section>
     </div>

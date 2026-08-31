@@ -48,3 +48,4 @@ next-env.d.ts
 # local agent instructions - not part of the published project
 /CLAUDE.md
 /AGENTS.md
+.neon

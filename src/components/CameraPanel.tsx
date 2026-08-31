@@ -77,7 +77,7 @@ export default function CameraPanel() {
         <h3 className="text-sm font-semibold">Camera (local only)</h3>
         {status === "recording" && (
           <span className="flex items-center gap-1.5 text-xs text-warn">
-            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-warn" />
+            <span className="inline-block h-2 w-2 animate-pulse bg-warn" />
             recording
           </span>
         )}
@@ -104,7 +104,7 @@ export default function CameraPanel() {
             ) : status === "recording" ? (
               <button
                 onClick={stopRecording}
-                className="rounded border border-warn/50 px-3 py-1.5 text-xs text-warn hover:bg-warn/10"
+                className="border border-warn/50 px-3 py-1.5 text-xs text-warn hover:bg-warn/10"
               >
                 Stop recording
               </button>

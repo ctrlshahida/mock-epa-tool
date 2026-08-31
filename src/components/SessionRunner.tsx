@@ -83,19 +83,24 @@ export default function SessionRunner() {
   const [elapsed, setElapsed] = useState(0);
   const [extension, setExtension] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [timeoutOverlay, setTimeoutOverlay] = useState(false);
   const [graceLeft, setGraceLeft] = useState(TIMEOUT_GRACE_SEC);
   const remaining = step ? step.durationSec + extension - elapsed : 0;
+  // Derived, not stored state - "hit zero" is fully a function of remaining.
+  const timedOut = Boolean(step) && !finished && remaining <= 0;
 
   // ----- questions -----
   const [deck, setDeck] = useState<Question[]>([]);
   const [qIndex, setQIndex] = useState(0);
   const question: Question | undefined = deck[qIndex];
-  const questionShownAtRef = useRef(Date.now());
+  // Real value is set on mount/next-question (an event/effect, not render) -
+  // Date.now() itself must never run during render.
+  const questionShownAtRef = useRef(0);
 
   // ----- speech -----
   const speech = useSpeech(transcriptOn);
-  const sliceStartRef = useRef(0);
+  // State, not a ref: it's read during render for the live-transcript panel,
+  // and refs can't be read during render.
+  const [sliceStart, setSliceStart] = useState(0);
 
   // ----- per-phase results -----
   const accRef = useRef<PhaseAccumulator>(freshAccumulator(0));
@@ -109,21 +114,39 @@ export default function SessionRunner() {
   // read during render.
   const [questionNumber, setQuestionNumber] = useState(1);
 
-  // Phase (re)initialisation.
-  useEffect(() => {
-    if (!step) return;
+  // Reset local per-phase state when the phase changes - adjusting state
+  // during render (React's documented alternative to an Effect for this)
+  // rather than an Effect, since this is a pure reset, not a side effect.
+  const [prevStepIndex, setPrevStepIndex] = useState(-1);
+  if (step && stepIndex !== prevStepIndex) {
+    setPrevStepIndex(stepIndex);
     setElapsed(0);
     setExtension(0);
     setPaused(false);
-    setTimeoutOverlay(false);
     setLastAnswerFlag(null);
     if (step.kind !== "break") {
       setDeck(shuffle(bankFor(step.kind)));
       setQIndex(0);
       setQuestionNumber(1);
+      setSliceStart(speech.finalText.length);
+    }
+  }
+
+  // Reset the grace countdown whenever we freshly enter a timed-out state -
+  // same render-time-adjustment pattern as above.
+  const [wasTimedOut, setWasTimedOut] = useState(false);
+  if (timedOut !== wasTimedOut) {
+    setWasTimedOut(timedOut);
+    if (timedOut) setGraceLeft(TIMEOUT_GRACE_SEC);
+  }
+
+  // Side effects that must not run during render: refs and the external Web
+  // Speech API.
+  useEffect(() => {
+    if (!step) return;
+    if (step.kind !== "break") {
       questionShownAtRef.current = Date.now();
       accRef.current = freshAccumulator(speech.finalText.length);
-      sliceStartRef.current = speech.finalText.length;
       if (transcriptOn) speech.start();
     } else {
       speech.stop();
@@ -133,24 +156,16 @@ export default function SessionRunner() {
 
   // Countdown tick.
   useEffect(() => {
-    if (!step || finished || paused || timeoutOverlay) return;
+    if (!step || finished || paused || timedOut) return;
     const id = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(id);
-  }, [step, finished, paused, timeoutOverlay]);
-
-  // Hit zero → confirmation overlay (never a silent jump).
-  useEffect(() => {
-    if (step && remaining <= 0 && !finished && !timeoutOverlay) {
-      setTimeoutOverlay(true);
-      setGraceLeft(TIMEOUT_GRACE_SEC);
-    }
-  }, [remaining, step, finished, timeoutOverlay]);
+  }, [step, finished, paused, timedOut]);
 
   const currentSlice = useCallback((): string => {
     return (
-      speech.finalText.slice(sliceStartRef.current) + " " + speech.interim
+      speech.finalText.slice(sliceStart) + " " + speech.interim
     ).trim();
-  }, [speech.finalText, speech.interim]);
+  }, [speech.finalText, speech.interim, sliceStart]);
 
   // Score the answer just given (if the question was distinction-tagged) and
   // fold its KSB tags into the phase accumulator.
@@ -178,7 +193,7 @@ export default function SessionRunner() {
           );
         }
       }
-      sliceStartRef.current = speech.finalText.length;
+      setSliceStart(speech.finalText.length);
     },
     [transcriptOn, currentSlice, speech.finalText.length],
   );
@@ -237,7 +252,6 @@ export default function SessionRunner() {
 
   const advancePhase = useCallback(() => {
     finalizePhase();
-    setTimeoutOverlay(false);
     if (stepIndex + 1 < plan.length) {
       setStepIndex(stepIndex + 1);
     } else {
@@ -245,16 +259,20 @@ export default function SessionRunner() {
     }
   }, [finalizePhase, stepIndex, plan.length]);
 
-  // Auto-advance countdown while the timeout overlay is up.
+  // Auto-advance countdown while the timeout confirmation is up. The tick and
+  // the auto-advance both happen inside the timer callback (not the effect
+  // body itself), so this only ever calls setState from a callback.
   useEffect(() => {
-    if (!timeoutOverlay) return;
-    if (graceLeft <= 0) {
-      advancePhase();
-      return;
-    }
-    const id = setTimeout(() => setGraceLeft((g) => g - 1), 1000);
+    if (!timedOut) return;
+    const id = setTimeout(() => {
+      if (graceLeft <= 1) {
+        advancePhase();
+      } else {
+        setGraceLeft((g) => g - 1);
+      }
+    }, 1000);
     return () => clearTimeout(id);
-  }, [timeoutOverlay, graceLeft, advancePhase]);
+  }, [timedOut, graceLeft, advancePhase]);
 
   // ---------------------------------------------------------------- debrief
   if (finished || !step) {
@@ -295,16 +313,13 @@ export default function SessionRunner() {
             Skip break → project questioning
           </button>
         </div>
-        {timeoutOverlay && (
+        {timedOut && (
           <TimeoutOverlay
             stepLabel={STEP_LABEL[step.kind]}
             nextLabel={stepIndex + 1 < plan.length ? STEP_LABEL[plan[stepIndex + 1].kind] : "debrief"}
             graceLeft={graceLeft}
             onContinue={advancePhase}
-            onExtend={() => {
-              setExtension((x) => x + 120);
-              setTimeoutOverlay(false);
-            }}
+            onExtend={() => setExtension((x) => x + 120)}
           />
         )}
       </div>
@@ -374,6 +389,20 @@ export default function SessionRunner() {
                     {t}
                     {distinction ? " ★" : ""}
                   </span>
+                );
+              })}
+            </div>
+            <div className="mt-3 space-y-1 border border-border bg-surface-2 p-3 text-sm">
+              {question.tags.map((t) => {
+                const ksb = ksbByCode.get(t);
+                if (!ksb) return null;
+                return (
+                  <p key={t}>
+                    <span className="font-mono font-semibold">{ksb.code}</span>
+                    {ksb.distinction ? " ★" : ""}
+                    {" - "}
+                    {ksb.title}
+                  </p>
                 );
               })}
             </div>
@@ -450,7 +479,7 @@ export default function SessionRunner() {
         )}
       </div>
 
-      {timeoutOverlay && (
+      {timedOut && (
         <TimeoutOverlay
           stepLabel={STEP_LABEL[step.kind]}
           nextLabel={
@@ -460,10 +489,7 @@ export default function SessionRunner() {
           }
           graceLeft={graceLeft}
           onContinue={advancePhase}
-          onExtend={() => {
-            setExtension((x) => x + 120);
-            setTimeoutOverlay(false);
-          }}
+          onExtend={() => setExtension((x) => x + 120)}
         />
       )}
     </div>

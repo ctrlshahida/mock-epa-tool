@@ -144,8 +144,8 @@ export const DISCUSSION_QUESTIONS: Question[] = [
   { id: "d32", phase: "discussion", tags: ["K10"], text: "What's a relational database? How do those relationships work, and what other kinds of relationships are there?" },
   { id: "d33", phase: "discussion", tags: ["K10"], text: "What is the difference between a relational and non-relational database, and when should you use one over the other?" },
   { id: "d34", phase: "discussion", tags: ["K10"], text: "What's a non-relational database? Give an example." },
-  { id: "d35", phase: "discussion", tags: ["K10"], text: "In this project your team is using the PostgreSQL database. Could you tell me a bit about what kind of database that is, and how you'd implement the same thing in a non-relational database - for example a document database?" },
-  { id: "d36", phase: "discussion", tags: ["K10"], text: "How does that PhotoTag table work? How does it implement the many-to-many relationship?" },
+  { id: "d35", phase: "discussion", tags: ["K10"], text: "What database does your project use? Could you tell me a bit about what kind of database that is, and how you'd implement the same thing in a non-relational database - for example a document database?" },
+  { id: "d36", phase: "discussion", tags: ["K10"], text: "Could you walk me through a table in your database that implements a many-to-many relationship? How does it work?" },
   { id: "d37", phase: "discussion", tags: ["K10"], text: "Could you give an example of a 'relationship' in project X?" },
 
   // ---- K12: software testing frameworks and methodologies ----

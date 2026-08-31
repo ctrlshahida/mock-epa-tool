@@ -42,7 +42,7 @@ export default function Debrief({
       {results.map((r) => (
         <section
           key={r.phase}
-          className="rounded-lg border border-border bg-surface p-5"
+          className="border border-border bg-surface p-5"
         >
           <h2 className="font-semibold">{PHASE_LABEL[r.phase]}</h2>
           <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
@@ -93,7 +93,7 @@ export default function Debrief({
               value={r.notes ?? ""}
               onChange={(e) => onNotesChange(r.phase, e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded border border-border bg-surface-2 p-2 text-sm text-foreground"
+              className="mt-1 w-full border border-border bg-surface-2 p-2 text-sm text-foreground"
               placeholder="What to work on next time…"
             />
           </label>
@@ -105,7 +105,7 @@ export default function Debrief({
           <button
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2.5 font-semibold text-accent-ink hover:opacity-90 disabled:opacity-50"
+            className="bg-accent px-5 py-2.5 font-semibold text-accent-ink hover:opacity-90 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save session"}
           </button>
