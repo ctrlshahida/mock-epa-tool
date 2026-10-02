@@ -170,6 +170,22 @@ export default function Home() {
               </button>
             </div>
           </section>
+
+          <section className="mt-6 border border-border bg-surface-2 p-6">
+            <h2 className="text-lg font-bold tracking-tight">
+              Practice Mode
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              No clock. Browse the question bank and draft how you&apos;d
+              structure each answer before the real thing.
+            </p>
+            <button
+              onClick={() => router.push("/session?mode=prep")}
+              className="mt-4 w-full border border-border bg-surface px-4 py-3 text-sm font-semibold hover:bg-accent hover:text-accent-ink"
+            >
+              Start Practice Mode - untimed
+            </button>
+          </section>
         </div>
 
         <div className="flex flex-col border border-border bg-surface p-6">

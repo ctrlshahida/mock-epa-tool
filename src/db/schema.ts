@@ -18,3 +18,14 @@ export const sessions = pgTable("sessions", {
 
 export type SessionRow = typeof sessions.$inferSelect;
 export type NewSessionRow = typeof sessions.$inferInsert;
+
+// One row per question drafted in untimed Practice Mode. Keyed by the
+// question's own id (e.g. "d18", "p25d") rather than a generated uuid, since
+// each question has at most one draft and we always want to upsert by id.
+export const prepNotes = pgTable("prep_notes", {
+  questionId: text("question_id").primaryKey(),
+  text: text("text").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PrepNoteRow = typeof prepNotes.$inferSelect;

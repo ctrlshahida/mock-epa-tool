@@ -496,7 +496,7 @@ export default function SessionRunner() {
   );
 }
 
-function PortfolioPanel() {
+export function PortfolioPanel() {
   const src = "/portfolio.pdf#view=FitH";
   return (
     <div className="mt-4 border border-border bg-surface-2">
