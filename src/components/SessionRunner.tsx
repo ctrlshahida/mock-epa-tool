@@ -19,6 +19,7 @@ import type { PhaseResult } from "@/app/actions";
 import { useSpeech } from "./useSpeech";
 import CameraPanel from "./CameraPanel";
 import Debrief from "./Debrief";
+import { usePortfolio } from "./usePortfolio";
 
 type StepKind = Phase | "break";
 
@@ -497,19 +498,68 @@ export default function SessionRunner() {
 }
 
 export function PortfolioPanel() {
-  const src = "/portfolio.pdf#view=FitH";
+  const { state, error, upload, remove } = usePortfolio();
+
+  if (state.status !== "ready") {
+    return (
+      <div className="mt-4 border border-border bg-surface-2">
+        <div className="border-b border-border px-3 py-2 text-xs text-muted">
+          <span>📄 Portfolio</span>
+        </div>
+        <div className="flex flex-col items-start gap-3 p-4 text-sm">
+          {state.status === "loading" ? (
+            <p className="text-muted">Loading…</p>
+          ) : (
+            <>
+              <p className="text-muted">
+                Upload your portfolio PDF to view it here. It is stored only in
+                this browser and is never sent to the server.
+              </p>
+              <label className="cursor-pointer bg-accent px-4 py-2 font-bold text-accent-ink">
+                Upload PDF
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void upload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              {error && <p className="text-warn">{error}</p>}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const src = `${state.url}#view=FitH`;
   return (
     <div className="mt-4 border border-border bg-surface-2">
       <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs text-muted">
         <span>📄 Portfolio</span>
-        <a
-          href={src}
-          target="_blank"
-          rel="noreferrer"
-          className="text-accent hover:underline"
-        >
-          Open in new tab
-        </a>
+        <span className="flex items-center gap-4">
+          {state.url.startsWith("blob:") && (
+            <button
+              type="button"
+              onClick={() => void remove()}
+              className="text-muted hover:underline"
+            >
+              Remove
+            </button>
+          )}
+          <a
+            href={src}
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent hover:underline"
+          >
+            Open in new tab
+          </a>
+        </span>
       </div>
       <iframe
         src={src}
