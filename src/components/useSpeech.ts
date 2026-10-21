@@ -18,9 +18,32 @@ interface SpeechRecognitionLike {
   onresult: ((e: SpeechRecognitionEventLike) => void) | null;
   onend: (() => void) | null;
   onerror: ((e: { error: string }) => void) | null;
+  onstart: (() => void) | null;
+  onaudiostart: (() => void) | null;
+  onspeechstart: (() => void) | null;
   start: () => void;
   stop: () => void;
 }
+
+// What the recogniser has actually done - surfaced in the UI so a silent
+// failure (mic opened but no speech service, etc.) is diagnosable.
+export interface SpeechDebug {
+  started: boolean;
+  audio: boolean;
+  speechDetected: boolean;
+  results: number;
+  ends: number;
+  lastError: string | null;
+}
+
+const EMPTY_DEBUG: SpeechDebug = {
+  started: false,
+  audio: false,
+  speechDetected: false,
+  results: 0,
+  ends: 0,
+  lastError: null,
+};
 
 export interface SpeechState {
   supported: boolean;
@@ -30,6 +53,7 @@ export interface SpeechState {
   // Full finalised transcript since start(). Callers slice this by index to
   // get per-question / per-phase segments.
   finalText: string;
+  debug: SpeechDebug;
   start: () => void;
   stop: () => void;
 }
@@ -40,6 +64,7 @@ export function useSpeech(enabled: boolean): SpeechState {
   const [error, setError] = useState<string | null>(null);
   const [interim, setInterim] = useState("");
   const [finalText, setFinalText] = useState("");
+  const [debug, setDebug] = useState<SpeechDebug>(EMPTY_DEBUG);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const wantedRef = useRef(false);
 
@@ -58,7 +83,11 @@ export function useSpeech(enabled: boolean): SpeechState {
     rec.continuous = true;
     rec.interimResults = true;
     rec.lang = "en-GB";
+    rec.onstart = () => setDebug((d) => ({ ...d, started: true }));
+    rec.onaudiostart = () => setDebug((d) => ({ ...d, audio: true }));
+    rec.onspeechstart = () => setDebug((d) => ({ ...d, speechDetected: true }));
     rec.onresult = (e) => {
+      setDebug((d) => ({ ...d, results: d.results + 1 }));
       let interimChunk = "";
       let finalChunk = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -70,6 +99,7 @@ export function useSpeech(enabled: boolean): SpeechState {
       setInterim(interimChunk);
     };
     rec.onend = () => {
+      setDebug((d) => ({ ...d, ends: d.ends + 1 }));
       // Chrome stops recognition periodically; restart while still wanted.
       if (wantedRef.current) {
         try {
@@ -82,12 +112,24 @@ export function useSpeech(enabled: boolean): SpeechState {
       }
     };
     rec.onerror = (e) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      setDebug((d) => ({ ...d, lastError: e.error }));
+      const fatal: Record<string, string> = {
+        "not-allowed": "Microphone access was blocked - transcript disabled.",
+        "service-not-allowed": "Microphone access was blocked - transcript disabled.",
+        // Chrome/Edge send audio to their own speech servers; this fires when
+        // those can't be reached (offline, VPN/proxy, managed browser policy).
+        network:
+          "The browser's speech service couldn't be reached (network error). Live transcript needs internet access to Google/Microsoft speech servers - check your connection or VPN, or type your answer instead.",
+        "audio-capture":
+          "No microphone could be opened. Check one is connected and selected, and that no other app is using it exclusively.",
+        "language-not-supported": "This browser doesn't support en-GB speech recognition.",
+      };
+      if (fatal[e.error]) {
         wantedRef.current = false;
-        setError("Microphone access was blocked - transcript disabled.");
+        setError(fatal[e.error]);
         setListening(false);
       }
-      // "no-speech" and "network" blips are recovered by onend restart.
+      // "no-speech" and "aborted" are normal; onend restarts recognition.
     };
     recRef.current = rec;
     return () => {
@@ -105,6 +147,7 @@ export function useSpeech(enabled: boolean): SpeechState {
     if (!recRef.current || wantedRef.current) return;
     wantedRef.current = true;
     setError(null);
+    setDebug(EMPTY_DEBUG);
     try {
       recRef.current.start();
       setListening(true);
@@ -123,5 +166,5 @@ export function useSpeech(enabled: boolean): SpeechState {
     setListening(false);
   }, []);
 
-  return { supported, listening, error, interim, finalText, start, stop };
+  return { supported, listening, error, interim, finalText, debug, start, stop };
 }

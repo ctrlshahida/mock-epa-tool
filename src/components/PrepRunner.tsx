@@ -61,14 +61,12 @@ export default function PrepRunner({
   initialPhase,
   initialKsbs,
   initialCamera = false,
-  initialTranscript = true,
 }: {
   initialPhase?: PhaseFilter;
   // Only questions tagged with one of these KSBs (from a dashboard
   // "Practise" link).
   initialKsbs?: string[];
   initialCamera?: boolean;
-  initialTranscript?: boolean;
 }) {
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>(
     initialPhase ?? "all",
@@ -77,7 +75,7 @@ export default function PrepRunner({
     initialKsbs && initialKsbs.length > 0 ? initialKsbs : null,
   );
   const [cameraOn, setCameraOn] = useState(initialCamera);
-  const [transcriptOn, setTranscriptOn] = useState(initialTranscript);
+  const [transcriptOn, setTranscriptOn] = useState(true);
   const cameraRef = useRef<CameraPanelHandle | null>(null);
   // Scored answers from this visit, so navigating between questions keeps the
   // result on screen. The database copy is what feeds the dashboard.
@@ -408,6 +406,7 @@ export default function PrepRunner({
             key={question.id}
             question={question}
             transcriptOn={transcriptOn}
+            onEnableTranscript={() => setTranscriptOn(true)}
             cameraOn={cameraOn}
             cameraRef={cameraRef}
             scored={scored[question.id]}

@@ -176,16 +176,15 @@ export default function Home() {
               Practice Mode
             </h2>
             <p className="mt-1 text-xs text-muted">
-              No clock. Answer questions one by one with the camera and live
-              transcript above, and get each answer scored against the grading
-              report criteria.
+              No clock. Answer questions one by one with live transcript (and the
+              camera, if ticked above), and get each answer scored against the
+              grading report criteria.
             </p>
             <button
               onClick={() => {
                 const params = new URLSearchParams({
                   mode: "prep",
                   camera: camera ? "1" : "0",
-                  transcript: transcript ? "1" : "0",
                 });
                 router.push(`/session?${params.toString()}`);
               }}

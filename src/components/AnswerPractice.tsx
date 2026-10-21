@@ -28,6 +28,7 @@ function fmtClock(sec: number): string {
 export default function AnswerPractice({
   question,
   transcriptOn,
+  onEnableTranscript,
   cameraOn,
   cameraRef,
   scored,
@@ -35,6 +36,7 @@ export default function AnswerPractice({
 }: {
   question: Question;
   transcriptOn: boolean;
+  onEnableTranscript: () => void;
   cameraOn: boolean;
   cameraRef: RefObject<CameraPanelHandle | null>;
   scored: ScoredState | undefined;
@@ -147,6 +149,14 @@ export default function AnswerPractice({
               : "Context question - it isn't tied to a grading criterion, so it's scored on delivery only."}
           </p>
         </div>
+        {!transcriptOn && (
+          <button
+            onClick={onEnableTranscript}
+            className="border border-border px-4 py-2 text-sm font-semibold hover:bg-accent hover:text-accent-ink"
+          >
+            Turn on live transcript
+          </button>
+        )}
         {canRecord && (
           <div className="flex items-center gap-3">
             {answering && (
@@ -184,6 +194,22 @@ export default function AnswerPractice({
         </p>
       )}
       {speech.error && <p className="mt-3 text-xs text-warn">{speech.error}</p>}
+      {transcriptOn && (answering || speech.debug.started) && (
+        <p className="mt-3 font-mono text-[11px] text-muted">
+          speech engine: started {speech.debug.started ? "✓" : "✗"} · mic audio{" "}
+          {speech.debug.audio ? "✓" : "✗"} · speech detected{" "}
+          {speech.debug.speechDetected ? "✓" : "✗"} · results {speech.debug.results} ·
+          restarts {speech.debug.ends} · last error {speech.debug.lastError ?? "none"}
+        </p>
+      )}
+      {transcriptOn && answering && !speech.error && !live && segSec >= 8 && (
+        <p className="mt-3 text-xs text-warn">
+          Listening, but nothing heard yet. Check the padlock icon in the address
+          bar allows the microphone, that the right mic is selected in Windows
+          sound settings, and speak a full sentence (captions appear after a
+          pause). If it stays blank, type your answer instead.
+        </p>
+      )}
 
       <label className="mt-4 block">
         <div className="flex items-center justify-between text-xs text-muted">
