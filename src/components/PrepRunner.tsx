@@ -16,6 +16,8 @@ import {
   type Question,
 } from "@/lib/questions";
 import { PortfolioPanel } from "./SessionRunner";
+import CameraPanel, { type CameraPanelHandle } from "./CameraPanel";
+import AnswerPractice, { type ScoredState } from "./AnswerPractice";
 import { loadPrepNotes, savePrepNote } from "@/app/prep-actions";
 
 type PhaseFilter = Phase | "all";
@@ -57,12 +59,29 @@ const SYNC_LABEL: Record<SyncState, string> = {
 
 export default function PrepRunner({
   initialPhase,
+  initialKsbs,
+  initialCamera = false,
+  initialTranscript = true,
 }: {
   initialPhase?: PhaseFilter;
+  // Only questions tagged with one of these KSBs (from a dashboard
+  // "Practise" link).
+  initialKsbs?: string[];
+  initialCamera?: boolean;
+  initialTranscript?: boolean;
 }) {
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>(
     initialPhase ?? "all",
   );
+  const [ksbFilter, setKsbFilter] = useState<string[] | null>(
+    initialKsbs && initialKsbs.length > 0 ? initialKsbs : null,
+  );
+  const [cameraOn, setCameraOn] = useState(initialCamera);
+  const [transcriptOn, setTranscriptOn] = useState(initialTranscript);
+  const cameraRef = useRef<CameraPanelHandle | null>(null);
+  // Scored answers from this visit, so navigating between questions keeps the
+  // result on screen. The database copy is what feeds the dashboard.
+  const [scored, setScored] = useState<Record<string, ScoredState>>({});
   const [distinctionOnly, setDistinctionOnly] = useState(false);
   const [shuffled, setShuffled] = useState(false);
   const [shuffleSeed, setShuffleSeed] = useState(0);
@@ -135,14 +154,17 @@ export default function PrepRunner({
         : phaseFilter === "discussion"
           ? DISCUSSION_QUESTIONS
           : PROJECT_QUESTIONS;
-    const filtered = distinctionOnly
+    const byDistinction = distinctionOnly
       ? all.filter((q) => isDistinctionTagged(q.tags))
       : all;
+    const filtered = ksbFilter
+      ? byDistinction.filter((q) => q.tags.some((t) => ksbFilter.includes(t)))
+      : byDistinction;
     return shuffled ? shuffle(filtered) : filtered;
     // shuffleSeed isn't read above - it exists purely to force a fresh
     // shuffle when "Shuffle" is clicked again while already shuffled.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phaseFilter, distinctionOnly, shuffled, shuffleSeed]);
+  }, [phaseFilter, distinctionOnly, ksbFilter, shuffled, shuffleSeed]);
 
   // Filters changed the deck out from under the current index - clamp back
   // into range rather than reading undefined.
@@ -152,6 +174,7 @@ export default function PrepRunner({
 
   const question = baseDeck[Math.min(index, baseDeck.length - 1)];
   const draftedCount = baseDeck.filter((q) => (notes[q.id] ?? "").trim()).length;
+  const scoredCount = baseDeck.filter((q) => scored[q.id]).length;
 
   const goTo = (i: number) => {
     if (baseDeck.length === 0) return;
@@ -173,13 +196,21 @@ export default function PrepRunner({
   const showPortfolio = question?.phase === "discussion";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
+    <div
+      className={
+        cameraOn
+          ? "grid gap-6 lg:grid-cols-[2fr_1fr]"
+          : "mx-auto max-w-3xl"
+      }
+    >
+    <div className="min-w-0 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Practice Mode</h1>
           <p className="text-sm text-muted">
-            No clock. Work through questions at your own pace and draft how
-            you&apos;d structure each answer.
+            No clock. Answer questions one by one - out loud with live
+            transcript and camera, or typed - and get scored against the
+            grading report.
           </p>
         </div>
         <Link href="/" className="text-sm text-accent hover:underline">
@@ -219,6 +250,22 @@ export default function PrepRunner({
             />
             Distinction-tagged only
           </label>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={transcriptOn}
+              onChange={(e) => setTranscriptOn(e.target.checked)}
+            />
+            Live transcript
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={cameraOn}
+              onChange={(e) => setCameraOn(e.target.checked)}
+            />
+            Camera
+          </label>
         </div>
         <button
           onClick={() => {
@@ -232,6 +279,24 @@ export default function PrepRunner({
         </button>
       </div>
 
+      {ksbFilter && (
+        <div className="flex items-center justify-between border border-accent/40 bg-accent/10 p-3 text-xs">
+          <span>
+            Showing only questions that evidence{" "}
+            <span className="font-mono font-semibold">{ksbFilter.join(", ")}</span>
+          </span>
+          <button
+            onClick={() => {
+              setKsbFilter(null);
+              setIndex(0);
+            }}
+            className="text-accent hover:underline"
+          >
+            Show all questions
+          </button>
+        </div>
+      )}
+
       {baseDeck.length === 0 || !question ? (
         <p className="text-sm text-muted">No questions match this filter.</p>
       ) : (
@@ -241,7 +306,7 @@ export default function PrepRunner({
               Question {index + 1} of {baseDeck.length}
             </span>
             <span className="text-xs tabular-nums text-muted">
-              {draftedCount} of {baseDeck.length} drafted
+              {draftedCount} drafted · {scoredCount} scored this visit
             </span>
           </div>
 
@@ -300,7 +365,7 @@ export default function PrepRunner({
 
           <label className="block">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted">Answer structure</span>
+              <span className="text-xs text-muted">Plan your answer structure (notes)</span>
               <div className="flex items-center gap-3">
                 {syncState[question.id] && (
                   <span
@@ -339,6 +404,16 @@ export default function PrepRunner({
             </div>
           </label>
 
+          <AnswerPractice
+            key={question.id}
+            question={question}
+            transcriptOn={transcriptOn}
+            cameraOn={cameraOn}
+            cameraRef={cameraRef}
+            scored={scored[question.id]}
+            onScored={(id, s) => setScored((old) => ({ ...old, [id]: s }))}
+          />
+
           <div className="flex items-center justify-between">
             <button
               onClick={() => goTo(index - 1)}
@@ -355,6 +430,12 @@ export default function PrepRunner({
           </div>
         </>
       )}
+    </div>
+    {cameraOn && (
+      <aside className="lg:sticky lg:top-4 lg:self-start">
+        <CameraPanel ref={cameraRef} />
+      </aside>
+    )}
     </div>
   );
 }

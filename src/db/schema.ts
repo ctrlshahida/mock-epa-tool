@@ -1,4 +1,9 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type {
+  AttemptFeedback,
+  CriterionVerdict,
+  Delivery,
+} from "../lib/practice-types";
 
 // One row per completed phase (a full simulation writes two rows:
 // one 'discussion', one 'project'). The comfort break is not persisted.
@@ -29,3 +34,25 @@ export const prepNotes = pgTable("prep_notes", {
 });
 
 export type PrepNoteRow = typeof prepNotes.$inferSelect;
+
+// One row per scored answer in Practice Mode. Unlike prep_notes (one draft per
+// question, overwritten), every attempt is kept so progress over time shows on
+// the dashboard. verdicts holds the per-criterion ratings against the grading
+// report (see lib/rubric.ts); the dashboard's projected grade is computed from
+// the latest attempt per question.
+export const practiceAttempts = pgTable("practice_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  questionId: text("question_id").notNull(),
+  phase: text("phase").notNull(), // 'discussion' | 'project'
+  ksbTags: text("ksb_tags").array().notNull().default([]),
+  answerText: text("answer_text").notNull(),
+  durationSec: integer("duration_sec"),
+  wordCount: integer("word_count").notNull(),
+  overallScore: integer("overall_score"), // 0-100; null for context questions
+  verdicts: jsonb("verdicts").$type<CriterionVerdict[]>().notNull(),
+  delivery: jsonb("delivery").$type<Delivery>().notNull(),
+  feedback: jsonb("feedback").$type<AttemptFeedback>().notNull(),
+});
+
+export type PracticeAttemptRow = typeof practiceAttempts.$inferSelect;

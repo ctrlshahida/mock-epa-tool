@@ -13,6 +13,9 @@ function SessionRouter() {
     return (
       <PrepRunner
         initialPhase={phase === "discussion" || phase === "project" ? phase : "all"}
+        initialKsbs={params.get("ksb")?.split(",").filter(Boolean)}
+        initialCamera={params.get("camera") === "1"}
+        initialTranscript={params.get("transcript") !== "0"}
       />
     );
   }

@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
+
+// Lets a parent start/stop a recording from its own buttons (e.g. one
+// recording per practice answer) instead of the panel's own controls.
+export interface CameraPanelHandle {
+  start: () => void;
+  stop: () => void;
+}
 
 // Opt-in camera capture. Everything stays client-side: live self-view,
 // MediaRecorder, and a local download link for the finished recording.
 // The recording itself is never uploaded anywhere.
-export default function CameraPanel() {
+export default function CameraPanel({ ref }: { ref?: Ref<CameraPanelHandle> }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -48,7 +55,7 @@ export default function CameraPanel() {
   }, [downloadUrl]);
 
   const startRecording = () => {
-    if (!streamRef.current) return;
+    if (!streamRef.current || recorderRef.current?.state === "recording") return;
     chunksRef.current = [];
     const recorder = new MediaRecorder(streamRef.current);
     recorder.ondataavailable = (e) => {
@@ -68,8 +75,10 @@ export default function CameraPanel() {
   };
 
   const stopRecording = () => {
-    recorderRef.current?.stop();
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   };
+
+  useImperativeHandle(ref, () => ({ start: startRecording, stop: stopRecording }));
 
   return (
     <section className="border border-border bg-surface p-4">

@@ -176,11 +176,19 @@ export default function Home() {
               Practice Mode
             </h2>
             <p className="mt-1 text-xs text-muted">
-              No clock. Browse the question bank and draft how you&apos;d
-              structure each answer before the real thing.
+              No clock. Answer questions one by one with the camera and live
+              transcript above, and get each answer scored against the grading
+              report criteria.
             </p>
             <button
-              onClick={() => router.push("/session?mode=prep")}
+              onClick={() => {
+                const params = new URLSearchParams({
+                  mode: "prep",
+                  camera: camera ? "1" : "0",
+                  transcript: transcript ? "1" : "0",
+                });
+                router.push(`/session?${params.toString()}`);
+              }}
               className="mt-4 w-full border border-border bg-surface px-4 py-3 text-sm font-semibold hover:bg-accent hover:text-accent-ink"
             >
               Start Practice Mode - untimed

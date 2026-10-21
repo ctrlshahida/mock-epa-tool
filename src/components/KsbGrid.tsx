@@ -51,7 +51,7 @@ export default function KsbGrid({ counts }: { counts: Record<string, number> }) 
         </div>
       ))}
       <p className="text-xs text-muted">
-        Number = times the KSB has come up across saved sessions. ★ + ring =
+        Number = times the KSB has come up across saved sessions and practice answers. ★ + ring =
         distinction-tagged.
       </p>
     </div>
